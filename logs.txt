@@ -1,0 +1,23 @@
+[2025-06-28 08:40:53]  Error leyendo fecha: time data '' does not match format '%Y-%m-%d'
+[2025-06-28 08:40:53]  Ejecutando scripts porque ha pasado un mes o nunca se ejecutaron.
+[2025-06-28 08:40:53]  Ejecutando: dataset_creator_ventas.py desde C:\Users\Osmin Tovar\Desktop\mesucidio\ConexionSql
+[2025-06-28 08:42:23]  Ejecutando: dataset_creator_aceites.py desde C:\Users\Osmin Tovar\Desktop\mesucidio\ConexionSql
+[2025-06-28 08:42:34]  Ejecutando: preprocesamiento.py desde C:\Users\Osmin Tovar\Desktop\mesucidio\ConexionSql
+[2025-06-28 08:42:35]  Ejecutando: preprocesamiento_2.py desde C:\Users\Osmin Tovar\Desktop\mesucidio\ConexionSql
+[2025-06-28 08:42:37]  Ejecutando: train_prophet.py desde C:\Users\Osmin Tovar\Desktop\mesucidio\ConexionSql
+[2025-06-28 08:45:52]  Ejecutando: Forecasting_dataset_creator.py desde C:\Users\Osmin Tovar\Desktop\mesucidio\ConexionSql
+[2025-06-28 08:45:57]  Ejecutando: generador_reporte.py desde C:\Users\Osmin Tovar\Desktop\mesucidio\ConexionSql
+[2025-06-28 08:45:58]  Todos los scripts fueron ejecutados exitosamente.
+[2025-06-28 09:05:06]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 09:05:45]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:31:01]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:34:41]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:34:55]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:35:59]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:37:40]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:37:52]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:46:17]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-06-28 11:46:55]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-07-18 16:54:56]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-07-18 17:04:27]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
+[2025-07-18 17:05:40]  Aún no ha pasado un mes desde la última ejecución. No se actualiza.
