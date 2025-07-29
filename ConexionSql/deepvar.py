@@ -1,43 +1,49 @@
-import pandas as pd
 from gluonts.dataset.common import ListDataset
-from gluonts.dataset.field_names import FieldName
-from gluonts.torch.model.deepvar import DeepVAREstimator
-from gluonts.torch.distributions import StudentTOutput
+import pandas as pd
+import numpy as np
+from gluonts.mx.model.deepar import DeepAREstimator
 from gluonts.mx.trainer import Trainer
-from gluonts.evaluation.backtest import make_evaluation_predictions
-from gluonts.evaluation import MultivariateEvaluator
+# Read your dataset (convert ds to datetime)
+df = pd.read_csv("ventas_formato_prophet_aceites.csv")  
+df['ds'] = pd.to_datetime(df['ds'])
 
-# --- Load Dataset ---
-df = pd.read_csv("ventas_formato_prophet_aceites.csv", parse_dates=["ds"])  # Update filename if needed
-df = df.sort_values(by=["ItemCode", "ds"])
+# Make sure it’s sorted
+df = df.sort_values(['ItemCode', 'ds'])
 
-# --- Prepare Dataset ---
-series_list = []
-for item_code in df["ItemCode"].unique():
-    item_df = df[df["ItemCode"] == item_code]
-    target_array = item_df[["y", "inventario"]].to_numpy().T  # (2, T)
-    
-    series = {
-        FieldName.START: item_df["ds"].min(),
-        FieldName.TARGET: target_array,
-        FieldName.ITEM_ID: str(item_code),
-    }
-    series_list.append(series)
+# Group by product
+product_datasets = []
+item_codes = df['ItemCode'].unique()
 
-train_ds = ListDataset(series_list, freq="D")
+for item in item_codes:
+    group = df[df['ItemCode'] == item]
+    sales = group['y'].values
+    inventory = group['inventario'].values
+    start = group['ds'].min()
 
+    product_datasets.append({
+        "target": sales.astype(float),
+        "start": start,
+        "dynamic_real_features": [inventory.astype(float)],
+    })
 
-estimator = DeepVAREstimator(
-    freq="D",
-    prediction_length=7,
-    target_dim=2,
-    trainer=Trainer(epochs=10)
+train_ds = ListDataset(
+    product_datasets,
+    freq="1M"
 )
 
 
-predictor = estimator.train(train_ds)
 
-# --- Make Predictions ---
+estimator = DeepAREstimator(
+    prediction_length=3,  # or however many months ahead you want to forecast
+    context_length=6,
+    freq="1M",
+    use_feat_dynamic_real=True,
+    trainer=Trainer(epochs=50),
+)
+
+predictor = estimator.train(train_ds)
+from gluonts.evaluation.backtest import make_evaluation_predictions
+
 forecast_it, ts_it = make_evaluation_predictions(
     dataset=train_ds,
     predictor=predictor,
@@ -45,25 +51,13 @@ forecast_it, ts_it = make_evaluation_predictions(
 )
 
 forecasts = list(forecast_it)
-tss = list(ts_it)
-
-# --- Evaluate ---
-evaluator = MultivariateEvaluator(target_agg_methods=["sum"])
-agg_metrics, item_metrics = evaluator(tss, forecasts)
-
-print("\nAggregate Forecast Metrics:")
-for k, v in agg_metrics.items():
-    print(f"{k:30s}: {v:.4f}")
-
 import matplotlib.pyplot as plt
 
 forecast = forecasts[0]
-ts = tss[0]
+ts = list(ts_it)[0]
 
-for i, target_name in enumerate(["Price", "Inventory"]):
-    plt.figure(figsize=(10, 4))
-    ts[i].plot(label="Actual")
-    forecast.quantile(0.5)[i].plot(label="Forecast (Median)")
-    plt.title(f"Forecast for {target_name}")
-    plt.legend()
-    plt.show()
+ts[-30:].plot(label="actual")
+forecast.plot(prediction_intervals=[50, 90])
+plt.grid(True)
+plt.legend()
+plt.show()
