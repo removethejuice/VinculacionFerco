@@ -6,59 +6,87 @@ conn = conectorcito()
 if conn is None:
     exit("❌ No se pudo conectar a la base de datos.")
 
-# Reemplaza esto con tu query completa (sin omitir nada)
-query = """
-SELECT 
-    T1.ItemCode AS 'Código del Artículo',
-    T1.ItemName AS 'Nombre del Artículo',
-    SUM(T0.InQty) AS 'Total Comprado',
-    SUM(T0.OutQty) AS 'Total Vendido',
-    CASE 
-        WHEN SUM(T0.InQty) = 0 THEN 0
-        ELSE SUM(T0.OutQty) / SUM(T0.InQty) 
-    END AS 'Rotación',
-    SUM(T2.LineTotal) AS 'Ingresos',
-    SUM(T2.Quantity * T2.Price) AS 'Costo Total',
-    SUM(T2.LineTotal) - SUM(T2.Quantity * T2.Price) AS 'Ganancia Bruta',
-    CASE 
-        WHEN SUM(T2.LineTotal) = 0 THEN 0
-        ELSE (SUM(T2.LineTotal) - SUM(T2.Quantity * T2.Price)) / SUM(T2.LineTotal) 
-    END AS 'Margen de Ganancia'
-FROM 
-    OINM T0
-INNER JOIN 
-    OITM T1 ON T0.ItemCode = T1.ItemCode
-INNER JOIN 
-    INV1 T2 ON T1.ItemCode = T2.ItemCode
-WHERE 
-    T0.DocDate BETWEEN '2025-01-01' AND '2025-04-01'
-    AND T2.DocDate BETWEEN '2025-01-01' AND '2025-04-01'
-    AND T1.ItemCode like 'LLA%'
-GROUP BY 
-    T1.ItemCode, T1.ItemName
-HAVING 
-    (SUM(T0.OutQty) / NULLIF(SUM(T0.InQty), 0) < 8)
-    AND ((SUM(T2.LineTotal) - SUM(T2.Quantity * T2.Price)) / NULLIF(SUM(T2.LineTotal), 0) < 10.00)
-ORDER BY 
-    'Rotación' ASC, 'Margen de Ganancia' ASC
+query = r"""
+WITH Movs AS (
+    SELECT
+        CAST(T0.DocDate AS date)      AS Fecha,
+        T0.ItemCode                   AS ItemCode,
+        SUM(T0.InQty)                 AS InQty,
+        SUM(T0.OutQty)                AS OutQty
+    FROM OINM T0
+    INNER JOIN OITM T1 ON T1.ItemCode = T0.ItemCode
+    WHERE T1.ItemCode LIKE 'LLA%'         -- sin rango: trae todo
+    GROUP BY CAST(T0.DocDate AS date), T0.ItemCode
+),
+Ventas AS (
+    SELECT
+        CAST(H.DocDate AS date)       AS Fecha,
+        L.ItemCode                    AS ItemCode,
+        SUM(L.LineTotal)              AS Ingresos,
+        SUM(L.Quantity * L.Price)     AS CostoTotal
+    FROM INV1 L
+    INNER JOIN OINV H ON H.DocEntry = L.DocEntry   -- fecha viene del header
+    WHERE L.ItemCode LIKE 'LLA%'
+    GROUP BY CAST(H.DocDate AS date), L.ItemCode
+),
+J AS (
+    SELECT
+        COALESCE(M.Fecha, V.Fecha)            AS [Fecha],
+        COALESCE(M.ItemCode, V.ItemCode)      AS [Código del Artículo],
+        I.ItemName                             AS [Nombre del Artículo],
+        ISNULL(M.InQty, 0)                     AS [Total Comprado],
+        ISNULL(M.OutQty, 0)                    AS [Total Vendido],
+        CASE 
+            WHEN ISNULL(M.InQty, 0) = 0 THEN 0
+            ELSE CAST(ISNULL(M.OutQty, 0) AS float) / NULLIF(M.InQty, 0)
+        END                                    AS [Rotación],
+        ISNULL(V.Ingresos, 0)                  AS [Ingresos],
+        ISNULL(V.CostoTotal, 0)                AS [Costo Total],
+        ISNULL(V.Ingresos, 0) - ISNULL(V.CostoTotal, 0) AS [Ganancia Bruta],
+        CASE 
+            WHEN ISNULL(V.Ingresos, 0) = 0 THEN 0
+            ELSE CAST(ISNULL(V.Ingresos, 0) - ISNULL(V.CostoTotal, 0) AS float) / NULLIF(V.Ingresos, 0)
+        END                                    AS [Margen de Ganancia]
+    FROM Movs M
+    FULL OUTER JOIN Ventas V
+        ON M.Fecha = V.Fecha AND M.ItemCode = V.ItemCode
+    LEFT JOIN OITM I
+        ON I.ItemCode = COALESCE(M.ItemCode, V.ItemCode)
+    WHERE COALESCE(M.ItemCode, V.ItemCode) IS NOT NULL
+)
+SELECT *
+FROM J
+WHERE
+    ([Rotación] < 8)
+    AND ([Margen de Ganancia] < 10.00)   -- si esto es %, cámbialo a 0.10
+ORDER BY
+    [Fecha] ASC, [Rotación] ASC, [Margen de Ganancia] ASC;
 """
 
 try:
     cursor = conn.cursor()
     cursor.execute(query)
 
-    # Avanzar hasta encontrar el primer conjunto de resultados válido
+    # Avanza a primer resultset útil (por si el driver devuelve info previa)
     while cursor.description is None and cursor.nextset():
         pass
 
     if cursor.description is None:
         print("⚠️ La consulta no retornó ningún resultado (SELECT).")
     else:
-        columns = [col[0] for col in cursor.description]
+        cols = [c[0] for c in cursor.description]
         rows = cursor.fetchall()
-        df = pd.DataFrame.from_records(rows, columns=columns)
-        df.to_csv("rotaciones_12_meses.csv", index=False, encoding="utf-8-sig")
-        print("✅ Archivo CSV generado exitosamente: rotaciones_12_meses.csv")
+        df = pd.DataFrame.from_records(rows, columns=cols)
+
+        # Formato fecha
+        if "Fecha" in df.columns:
+            try:
+                df["Fecha"] = pd.to_datetime(df["Fecha"]).dt.strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        df.to_csv("rotaciones_completas.csv", index=False, encoding="utf-8-sig")
+        print("✅ Archivo CSV generado: rotaciones_completas.csv")
 
 except Exception as e:
     print(f"❌ Error ejecutando la consulta: {e}")
